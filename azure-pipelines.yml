@@ -1,0 +1,72 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  buildConfiguration: 'Release'
+
+stages:
+
+# 🔹 Build Stage
+- stage: Build
+  jobs:
+  - job: BuildJob
+    steps:
+
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        version: '8.x'
+
+    - script: dotnet restore
+      displayName: Restore
+
+    - script: dotnet build --configuration $(buildConfiguration)
+      displayName: Build
+
+    - script: dotnet publish -c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory)
+      displayName: Publish
+
+    - publish: $(Build.ArtifactStagingDirectory)
+      artifact: drop
+
+# 🔹 Dev Deployment
+- stage: Dev
+  dependsOn: Build
+  jobs:
+  - deployment: DevDeploy
+    environment: dev
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+          - script: echo "Deploying to DEV"
+
+# 🔹 Test Deployment
+- stage: Test
+  dependsOn: Dev
+  jobs:
+  - deployment: TestDeploy
+    environment: test
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+          - script: echo "Deploying to TEST"
+
+# 🔹 Production Deployment
+- stage: Prod
+  dependsOn: Test
+  jobs:
+  - deployment: ProdDeploy
+    environment: prod
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+          - script: echo "Deploying to PROD"
